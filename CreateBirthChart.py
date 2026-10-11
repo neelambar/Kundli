@@ -1,3 +1,4 @@
+import html
 import os
 import swisseph as swe
 
@@ -122,41 +123,16 @@ def calculate_kundli(year, month, day, hour, minute, second, lat, lon, tz_offset
     }
 
 
-def generate_html_chart(data, output_file="Kundli_Chart.html"):
-    """
-    Renders the North Indian Diamond Chart in HTML/CSS with counter-clockwise house layout.
-    """
-    house_planets = data["house_planets"]
-    house_to_rashi = data["house_to_rashi"]
-    info = data["birth_info"]
-
-    html_content = f"""<!DOCTYPE html>
-<html lang="hi">
-<head>
-<meta charset="UTF-8">
-<title>जन्म कुंडली - उत्तर भारतीय शैली</title>
-<style>
-    body {{
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background-color: #f5f5f5;
-        padding: 20px;
-        color: #333;
-    }}
-    .container {{
-        max-width: 800px;
-        margin: 0 auto;
-        background: #ffffff;
-        padding: 25px;
-        border-radius: 10px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    }}
-    h1, h2 {{
+CHART_CSS = """
+    .kundli-title {
         text-align: center;
         color: #8b0000;
         margin-bottom: 5px;
-    }}
-    .info-bar {{
+    }
+    .info-bar {
         display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
         justify-content: space-around;
         background: #fffdf5;
         border: 1px solid #e0d0b0;
@@ -164,25 +140,26 @@ def generate_html_chart(data, output_file="Kundli_Chart.html"):
         border-radius: 5px;
         margin-bottom: 20px;
         font-size: 14px;
-    }}
-    
+    }
+
     /* North Indian Diamond Layout */
-    .kundli-box {{
+    .kundli-box {
         position: relative;
-        width: 480px;
-        height: 480px;
+        width: 100%;
+        max-width: 480px;
+        aspect-ratio: 1 / 1;
         border: 3px solid #8b0000;
         background-color: #fffdf5;
         margin: 0 auto 30px auto;
         box-sizing: border-box;
-    }}
-    .lines {{
+    }
+    .lines {
         position: absolute;
         top: 0; left: 0;
         width: 100%; height: 100%;
         pointer-events: none;
-    }}
-    .house {{
+    }
+    .house {
         position: absolute;
         display: flex;
         flex-direction: column;
@@ -191,63 +168,82 @@ def generate_html_chart(data, output_file="Kundli_Chart.html"):
         text-align: center;
         box-sizing: border-box;
         padding: 2px;
-    }}
-    .rashi-num {{
+    }
+    .rashi-num {
         font-size: 13px;
         font-weight: bold;
         color: #b30000;
-    }}
-    .planets {{
+    }
+    .planets {
         font-size: 12px;
         font-weight: bold;
         color: #1a1a1a;
         margin-top: 2px;
         line-height: 1.2;
-    }}
+    }
 
     /* House CSS Coordinates (Counter-Clockwise) */
-    .h1  {{ top: 10%; left: 35%; width: 30%; height: 30%; }}
-    .h2  {{ top: 2%;  left: 10%; width: 30%; height: 20%; }}
-    .h3  {{ top: 15%; left: 2%;  width: 25%; height: 25%; }}
-    .h4  {{ top: 35%; left: 10%; width: 30%; height: 30%; }}
-    .h5  {{ top: 60%; left: 2%;  width: 25%; height: 25%; }}
-    .h6  {{ top: 78%; left: 10%; width: 30%; height: 20%; }}
-    .h7  {{ top: 60%; left: 35%; width: 30%; height: 30%; }}
-    .h8  {{ top: 78%; left: 60%; width: 30%; height: 20%; }}
-    .h9  {{ top: 60%; left: 73%; width: 25%; height: 25%; }}
-    .h10 {{ top: 35%; left: 60%; width: 30%; height: 30%; }}
-    .h11 {{ top: 15%; left: 73%; width: 25%; height: 25%; }}
-    .h12 {{ top: 2%;  left: 60%; width: 30%; height: 20%; }}
+    .h1  { top: 10%; left: 35%; width: 30%; height: 30%; }
+    .h2  { top: 2%;  left: 10%; width: 30%; height: 20%; }
+    .h3  { top: 15%; left: 2%;  width: 25%; height: 25%; }
+    .h4  { top: 35%; left: 10%; width: 30%; height: 30%; }
+    .h5  { top: 60%; left: 2%;  width: 25%; height: 25%; }
+    .h6  { top: 78%; left: 10%; width: 30%; height: 20%; }
+    .h7  { top: 60%; left: 35%; width: 30%; height: 30%; }
+    .h8  { top: 78%; left: 60%; width: 30%; height: 20%; }
+    .h9  { top: 60%; left: 73%; width: 25%; height: 25%; }
+    .h10 { top: 35%; left: 60%; width: 30%; height: 30%; }
+    .h11 { top: 15%; left: 73%; width: 25%; height: 25%; }
+    .h12 { top: 2%;  left: 60%; width: 30%; height: 20%; }
 
     /* Table styling */
-    table {{
+    .planet-table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 15px;
-    }}
-    th, td {{
+    }
+    .planet-table th, .planet-table td {
         border: 1px solid #ddd;
         padding: 8px 12px;
         text-align: center;
-    }}
-    th {{
+    }
+    .planet-table th {
         background-color: #8b0000;
         color: white;
-    }}
-    tr:nth-child(even) {{ background-color: #f9f9f9; }}
-</style>
-</head>
-<body>
+    }
+    .planet-table tr:nth-child(even) { background-color: #f9f9f9; }
+"""
 
-<div class="container">
-    <h1>जन्म कुंडली (Kundli Chart)</h1>
-    <h2>उत्तर भारतीय शैली (North Indian Style)</h2>
-    
+
+def _format_coord(value, pos, neg):
+    return f"{abs(value):.4f}° {pos if value >= 0 else neg}"
+
+
+def render_chart_fragment(data, name="", place=""):
+    """
+    Renders the North Indian Diamond Chart (counter-clockwise house layout) and the
+    planetary table as an HTML fragment. Pair it with CHART_CSS.
+    """
+    house_planets = data["house_planets"]
+    house_to_rashi = data["house_to_rashi"]
+    info = data["birth_info"]
+    esc = html.escape
+
+    location = f"{_format_coord(info['lat'], 'N', 'S')}, {_format_coord(info['lon'], 'E', 'W')}"
+    if place:
+        location = f"{esc(place)} ({location})"
+    title_name = f" – {esc(name)}" if name else ""
+    tz_label = f" (UTC{esc(info['tz'])})" if info.get("tz") else ""
+
+    html_content = f"""
+    <h1 class="kundli-title">जन्म कुंडली (Kundli Chart){title_name}</h1>
+    <h2 class="kundli-title">उत्तर भारतीय शैली (North Indian Style)</h2>
+
     <div class="info-bar">
         <div><b>दिनांक:</b> {info['date']}</div>
-        <div><b>समय:</b> {info['time']}</div>
-        <div><b>स्थान:</b> {info['lat']}° N, {info['lon']}° E</div>
-        <div><b>लाहिड़ी अयनांश:</b> {info['ayanamsa']}</div>
+        <div><b>समय:</b> {info['time']}{tz_label}</div>
+        <div><b>स्थान:</b> {location}</div>
+        <div><b>लाहिड़ी अयनांश:</b> {info['ayanamsa']}</div>
     </div>
 
     <!-- North Indian Diamond Canvas -->
@@ -275,8 +271,8 @@ def generate_html_chart(data, output_file="Kundli_Chart.html"):
     html_content += f"""
     </div>
 
-    <h2>ग्रह स्थिति (Planetary Positions)</h2>
-    <table>
+    <h2 class="kundli-title">ग्रह स्थिति (Planetary Positions)</h2>
+    <table class="planet-table">
         <thead>
             <tr>
                 <th>ग्रह (Planet)</th>
@@ -306,15 +302,49 @@ def generate_html_chart(data, output_file="Kundli_Chart.html"):
     html_content += """
         </tbody>
     </table>
-</div>
+"""
+    return html_content
 
+
+def generate_html_chart(data, output_file="Kundli_Chart.html", name="", place=""):
+    """
+    Writes a standalone HTML page containing the chart.
+    """
+    html_content = f"""<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>जन्म कुंडली - उत्तर भारतीय शैली</title>
+<style>
+    body {{
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f5f5f5;
+        padding: 20px;
+        color: #333;
+    }}
+    .container {{
+        max-width: 800px;
+        margin: 0 auto;
+        background: #ffffff;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }}
+{CHART_CSS}
+</style>
+</head>
+<body>
+<div class="container">
+{render_chart_fragment(data, name, place)}
+</div>
 </body>
 </html>
 """
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(html_content)
-    
+
     print(f"\n[+] Kundli generated successfully!")
     print(f"[+] Saved output file to: {os.path.abspath(output_file)}")
 
@@ -327,11 +357,11 @@ if __name__ == "__main__":
     birth_year = 1984
     birth_month = 2
     birth_day = 25
-    
+
     birth_hour = 00       # 24-hour format
     birth_minute = 30
     birth_second = 0
-    
+
     # Location: Garhakota, Madhya Pradesh, India
     latitude = 23.7801    # North
     longitude = 78.9620   # East
@@ -351,4 +381,4 @@ if __name__ == "__main__":
     )
 
     # 2. Generate HTML File
-    generate_html_chart(kundli_data, output_file="Garhakota_Kundli.html")
+    generate_html_chart(kundli_data, output_file="Garhakota_Kundli.html", place="Garhakota")

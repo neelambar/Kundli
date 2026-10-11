@@ -1,0 +1,12 @@
+.git*
+.vscode
+.venv
+__pycache__
+local.settings*.json
+kundlis.json
+*.html
+kundli_template.py
+README.md
+app.py
+deploy
+requirements-server.txt

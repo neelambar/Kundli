@@ -1,0 +1,19 @@
+# systemd unit for the Kundli app. Install with:
+#   sudo cp deploy/kundli.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now kundli
+# Adjust User and the /home/ubuntu/Kundli paths if your user or clone location differs.
+[Unit]
+Description=Kundli Generator (gunicorn)
+After=network.target
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/Kundli
+# systemd creates /var/lib/kundli (owned by User) for the SQLite database
+StateDirectory=kundli
+Environment=KUNDLI_DB=/var/lib/kundli/kundli.db
+# Only listen on localhost; Caddy is the public entry point
+ExecStart=/home/ubuntu/Kundli/.venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --threads 4 app:app
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

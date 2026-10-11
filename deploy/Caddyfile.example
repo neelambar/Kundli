@@ -1,0 +1,12 @@
+# Add this site block to /etc/caddy/Caddyfile, then: sudo systemctl reload caddy
+# Replace the domain with yours (its DNS A record must point at this server).
+# Caddy gets and renews the HTTPS certificate automatically.
+kundli.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:8000
+}
+
+# No domain? Use a port on the public IP instead (plain HTTP), e.g.:
+# :8080 {
+# 	reverse_proxy 127.0.0.1:8000
+# }

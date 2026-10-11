@@ -2,6 +2,7 @@
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>जन्म कुंडली - उत्तर भारतीय शैली</title>
 <style>
     body {
@@ -18,13 +19,16 @@
         border-radius: 10px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.1);
     }
-    h1, h2 {
+
+    .kundli-title {
         text-align: center;
         color: #8b0000;
         margin-bottom: 5px;
     }
     .info-bar {
         display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
         justify-content: space-around;
         background: #fffdf5;
         border: 1px solid #e0d0b0;
@@ -33,12 +37,13 @@
         margin-bottom: 20px;
         font-size: 14px;
     }
-    
+
     /* North Indian Diamond Layout */
     .kundli-box {
         position: relative;
-        width: 480px;
-        height: 480px;
+        width: 100%;
+        max-width: 480px;
+        aspect-ratio: 1 / 1;
         border: 3px solid #8b0000;
         background-color: #fffdf5;
         margin: 0 auto 30px auto;
@@ -88,34 +93,35 @@
     .h12 { top: 2%;  left: 60%; width: 30%; height: 20%; }
 
     /* Table styling */
-    table {
+    .planet-table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 15px;
     }
-    th, td {
+    .planet-table th, .planet-table td {
         border: 1px solid #ddd;
         padding: 8px 12px;
         text-align: center;
     }
-    th {
+    .planet-table th {
         background-color: #8b0000;
         color: white;
     }
-    tr:nth-child(even) { background-color: #f9f9f9; }
+    .planet-table tr:nth-child(even) { background-color: #f9f9f9; }
+
 </style>
 </head>
 <body>
-
 <div class="container">
-    <h1>जन्म कुंडली (Kundli Chart)</h1>
-    <h2>उत्तर भारतीय शैली (North Indian Style)</h2>
-    
+
+    <h1 class="kundli-title">जन्म कुंडली (Kundli Chart)</h1>
+    <h2 class="kundli-title">उत्तर भारतीय शैली (North Indian Style)</h2>
+
     <div class="info-bar">
         <div><b>दिनांक:</b> 25.02.1984</div>
         <div><b>समय:</b> 00:30:00</div>
-        <div><b>स्थान:</b> 23.7801° N, 78.962° E</div>
-        <div><b>लाहिड़ी अयनांश:</b> 23.6357°</div>
+        <div><b>स्थान:</b> Garhakota (23.7801° N, 78.9620° E)</div>
+        <div><b>लाहिड़ी अयनांश:</b> 23.6357°</div>
     </div>
 
     <!-- North Indian Diamond Canvas -->
@@ -179,8 +185,8 @@
         </div>
     </div>
 
-    <h2>ग्रह स्थिति (Planetary Positions)</h2>
-    <table>
+    <h2 class="kundli-title">ग्रह स्थिति (Planetary Positions)</h2>
+    <table class="planet-table">
         <thead>
             <tr>
                 <th>ग्रह (Planet)</th>
@@ -253,7 +259,7 @@
             </tr>
         </tbody>
     </table>
-</div>
 
+</div>
 </body>
 </html>
