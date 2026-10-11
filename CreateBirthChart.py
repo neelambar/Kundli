@@ -37,10 +37,12 @@ PLANET_IDS = {
 }
 
 
-def calculate_kundli(year, month, day, hour, minute, second, lat, lon, tz_offset):
+def calculate_kundli(year, month, day, hour, minute, second, lat, lon, tz_offset, house1_rashi=None):
     """
     Calculates Lagna, Planetary Sidereal positions, Rashi numbers, and House mapping.
     tz_offset: Timezone offset from UTC in hours (e.g., +5.5 for IST).
+    house1_rashi: Rashi number (1-12) to place in House 1 instead of the Lagna at this
+    time, e.g. the birth Lagna for a transit (gochar) chart.
     """
     # 1. Convert local birth time to UTC decimal hours
     local_decimal_hours = hour + (minute / 60.0) + (second / 3600.0)
@@ -57,7 +59,8 @@ def calculate_kundli(year, month, day, hour, minute, second, lat, lon, tz_offset
     # Using 'W' (Whole Sign) system so House 1 spans the full Lagna Rashi
     cusps, ascmc = swe.houses_ex(jd, lat, lon, b'W', swe.FLG_SIDEREAL)
     lagna_longitude = ascmc[0]
-    lagna_rashi_num = int(lagna_longitude // 30) + 1  # 1-indexed (1=Aries, 2=Taurus...)
+    asc_rashi_num = int(lagna_longitude // 30) + 1  # 1-indexed (1=Aries, 2=Taurus...)
+    lagna_rashi_num = house1_rashi or asc_rashi_num
 
     # 5. Map Houses to Rashis (Counter-Clockwise in North Indian Style)
     # House 1 = Lagna Rashi, House 2 = Next Rashi, ..., House 12 = Previous Rashi
@@ -115,8 +118,10 @@ def calculate_kundli(year, month, day, hour, minute, second, lat, lon, tz_offset
             "lon": lon,
             "ayanamsa": f"{ayanamsa:.4f}°"
         },
-        "lagna_rashi": RASHI_NAMES_HI[lagna_rashi_num],
+        "lagna_rashi_num": asc_rashi_num,
+        "lagna_rashi": RASHI_NAMES_HI[asc_rashi_num],
         "lagna_deg": f"{(lagna_longitude % 30):05.2f}°",
+        "lagna_house": ((asc_rashi_num - lagna_rashi_num) % 12) + 1,
         "house_to_rashi": house_to_rashi,
         "house_planets": house_planets,
         "planet_details": planet_details
@@ -215,11 +220,16 @@ CHART_CSS = """
 """
 
 
+def _ordinal(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
 def _format_coord(value, pos, neg):
     return f"{abs(value):.4f}° {pos if value >= 0 else neg}"
 
 
-def render_chart_fragment(data, name="", place="", title="जन्म कुंडली (Kundli Chart)"):
+def render_chart_fragment(data, name="", place="", title="जन्म कुंडली (Kundli Chart)",
+                          asc_label="लग्न (Ascendant)", note=""):
     """
     Renders the North Indian Diamond Chart (counter-clockwise house layout) and the
     planetary table as an HTML fragment. Pair it with CHART_CSS.
@@ -234,6 +244,7 @@ def render_chart_fragment(data, name="", place="", title="जन्म कुं
         location = f"{esc(place)} ({location})"
     title_name = f" – {esc(name)}" if name else ""
     tz_label = f" (UTC{esc(info['tz'])})" if info.get("tz") else ""
+    note_html = f"\n        <div>{esc(note)}</div>" if note else ""
 
     html_content = f"""
     <h1 class="kundli-title">{title}{title_name}</h1>
@@ -243,7 +254,7 @@ def render_chart_fragment(data, name="", place="", title="जन्म कुं
         <div><b>दिनांक:</b> {info['date']}</div>
         <div><b>समय:</b> {info['time']}{tz_label}</div>
         <div><b>स्थान:</b> {location}</div>
-        <div><b>लाहिड़ी अयनांश:</b> {info['ayanamsa']}</div>
+        <div><b>लाहिड़ी अयनांश:</b> {info['ayanamsa']}</div>{note_html}
     </div>
 
     <!-- North Indian Diamond Canvas -->
@@ -283,10 +294,10 @@ def render_chart_fragment(data, name="", place="", title="जन्म कुं
         </thead>
         <tbody>
             <tr>
-                <td><b>लग्न (Ascendant)</b></td>
+                <td><b>{esc(asc_label)}</b></td>
                 <td>{data['lagna_rashi']}</td>
                 <td>{data['lagna_deg']}</td>
-                <td>1st House</td>
+                <td>{_ordinal(data['lagna_house'])} House</td>
             </tr>
 """
 
@@ -296,7 +307,7 @@ def render_chart_fragment(data, name="", place="", title="जन्म कुं
                 <td><b>{p['name']}</b></td>
                 <td>{p['rashi']}</td>
                 <td>{p['deg']}</td>
-                <td>{p['house']} House</td>
+                <td>{_ordinal(p['house'])} House</td>
             </tr>"""
 
     html_content += """

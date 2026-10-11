@@ -214,7 +214,7 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error="", tra
                     <button type="button" id="cur_find_place" class="secondary">Find</button>
                 </div>
                 <select id="cur_place_matches" hidden style="margin-top:8px"></select>
-                <div class="hint">The transit chart shows the planets as of now, with the lagna rising at this place. Click Find and pick a match.</div>
+                <div class="hint">The transit chart shows the planets as of now, in houses counted from the birth lagna. This place sets the local time and the transit ascendant. Click Find and pick a match.</div>
             </div>
         </div>
         <details>

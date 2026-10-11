@@ -66,28 +66,36 @@ def parse_current_place(params):
     return loc
 
 
-def build_chart(rec):
+def _birth_data(rec):
     year, month, day = map(int, rec["date"].split("-"))
     hour, minute, second = map(int, rec["time"].split(":"))
     tz_offset = utc_offset_hours(rec["timezone"], year, month, day, hour, minute, second)
     data = calculate_kundli(year, month, day, hour, minute, second, rec["lat"], rec["lon"], tz_offset)
     data["birth_info"]["tz"] = format_offset(tz_offset)
-    return render_chart_fragment(data, name=rec["name"], place=rec["place"])
+    return data
 
 
-def build_transit_chart(loc, now=None):
+def build_chart(rec):
+    return render_chart_fragment(_birth_data(rec), name=rec["name"], place=rec["place"])
+
+
+def build_transit_chart(rec, loc, now=None):
     """
-    Transit (gochar) chart: planet positions at `now` (default: this moment), with the
-    lagna rising at `loc` ({place, lat, lon, timezone}).
+    Transit (gochar) chart: planet positions at `now` (default: this moment) at `loc`
+    ({place, lat, lon, timezone}), with houses counted from the birth lagna of `rec`.
     """
+    birth = _birth_data(rec)
     local = (now or datetime.now(timezone.utc)).astimezone(ZoneInfo(loc["timezone"]))
     tz_offset = local.utcoffset().total_seconds() / 3600.0
     data = calculate_kundli(local.year, local.month, local.day, local.hour, local.minute, local.second,
-                            loc["lat"], loc["lon"], tz_offset)
+                            loc["lat"], loc["lon"], tz_offset, house1_rashi=birth["lagna_rashi_num"])
     data["birth_info"]["tz"] = format_offset(tz_offset)
-    return render_chart_fragment(data, place=loc["place"], title="गोचर कुंडली (Transit Chart)")
+    return render_chart_fragment(
+        data, name=rec["name"], place=loc["place"], title="गोचर कुंडली (Transit Chart)",
+        asc_label="गोचर लग्न (Transit Ascendant)",
+        note=f"भाव जन्म लग्न से (Houses from birth lagna): {birth['lagna_rashi']} ({birth['lagna_rashi_num']})")
 
 
 def build_transit_for(rec, params):
     """Transit chart for the current place in `params`, falling back to the birth place. May raise ValueError."""
-    return build_transit_chart(parse_current_place(params) or rec)
+    return build_transit_chart(rec, parse_current_place(params) or rec)
