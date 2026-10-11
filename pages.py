@@ -46,47 +46,79 @@ PAGE_CSS = """
     .error { background: #fde8e8; color: #8b0000; padding: 10px; border-radius: 5px; margin-bottom: 14px; }
     details { margin-top: 12px; }
     summary { cursor: pointer; font-size: 13px; color: #8b0000; }
+    .section-title { color: #8b0000; font-size: 15px; margin: 22px 0 10px 0; padding-top: 14px; border-top: 1px solid #eee; }
     .chart-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
 """
 
 PAGE_JS = """
-const placeInput = document.getElementById('place');
-const matches = document.getElementById('place-matches');
-const lat = document.getElementById('lat'), lon = document.getElementById('lon'), tz = document.getElementById('timezone');
-let results = [];
+// Wires a place box + Find button to fill lat/lon/timezone. prefix is '' (birth) or 'cur_' (current).
+function placeFinder(prefix, onPick) {
+    const $ = id => document.getElementById(prefix + id);
+    const placeInput = $('place'), matches = $('place_matches');
+    const lat = $('lat'), lon = $('lon'), tz = $('timezone');
+    let results = [];
 
-document.getElementById('find-place').addEventListener('click', async () => {
-    const q = placeInput.value.trim();
-    if (q.length < 2) return;
-    matches.innerHTML = '<option>Searching…</option>';
-    matches.hidden = false;
-    try {
-        const resp = await fetch('/api/places?q=' + encodeURIComponent(q));
-        results = await resp.json();
-    } catch (e) { results = []; }
-    if (!results.length) { matches.innerHTML = '<option>No matches found</option>'; return; }
-    matches.innerHTML = results.map((p, i) =>
-        `<option value="${i}">${p.label.replace(/</g, '&lt;')} (${p.lat.toFixed(2)}, ${p.lon.toFixed(2)})</option>`).join('');
-    pick(0);
-});
-matches.addEventListener('change', () => pick(+matches.value));
-function pick(i) {
-    const p = results[i];
-    if (!p) return;
-    placeInput.value = p.label;
-    lat.value = p.lat; lon.value = p.lon; tz.value = p.timezone;
+    $('find_place').addEventListener('click', async () => {
+        const q = placeInput.value.trim();
+        if (q.length < 2) return;
+        matches.innerHTML = '<option>Searching…</option>';
+        matches.hidden = false;
+        try {
+            const resp = await fetch('/api/places?q=' + encodeURIComponent(q));
+            results = await resp.json();
+        } catch (e) { results = []; }
+        if (!results.length) { matches.innerHTML = '<option>No matches found</option>'; return; }
+        matches.innerHTML = results.map((p, i) =>
+            `<option value="${i}">${p.label.replace(/</g, '&lt;')} (${p.lat.toFixed(2)}, ${p.lon.toFixed(2)})</option>`).join('');
+        pick(0);
+    });
+    matches.addEventListener('change', () => pick(+matches.value));
+    function pick(i) {
+        const p = results[i];
+        if (!p) return;
+        placeInput.value = p.label;
+        lat.value = p.lat; lon.value = p.lon; tz.value = p.timezone;
+        if (onPick) onPick();
+    }
+    placeInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); $('find_place').click(); }
+    });
 }
-placeInput.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('find-place').click(); }
-});
 
+// The current place isn't stored with a kundli; remember it in this browser instead.
+const CUR_FIELDS = ['cur_place', 'cur_lat', 'cur_lon', 'cur_timezone'];
+function rememberCurrentPlace() {
+    try { localStorage.setItem('kundli.currentPlace', JSON.stringify(CUR_FIELDS.map(f => document.getElementById(f).value))); } catch (e) {}
+}
+if (!document.getElementById('cur_place').value) {
+    try {
+        const saved = JSON.parse(localStorage.getItem('kundli.currentPlace') || 'null');
+        if (saved) CUR_FIELDS.forEach((f, i) => { document.getElementById(f).value = saved[i] || ''; });
+    } catch (e) {}
+}
+document.getElementById('cur_place').addEventListener('change', e => { if (!e.target.value.trim()) rememberCurrentPlace(); });
+
+placeFinder('');
+placeFinder('cur_', rememberCurrentPlace);
+
+function currentPlaceQuery() {
+    if (!document.getElementById('cur_place').value.trim()) return '';
+    return '&' + CUR_FIELDS.map(f => f + '=' + encodeURIComponent(document.getElementById(f).value.trim())).join('&');
+}
 document.getElementById('saved').addEventListener('change', e => {
-    if (e.target.value) location.href = '/?id=' + encodeURIComponent(e.target.value);
+    if (e.target.value) location.href = '/?id=' + encodeURIComponent(e.target.value) + currentPlaceQuery();
 });
+const updateTransit = document.getElementById('update_transit');
+if (updateTransit) {
+    const transitUrl = () => '/?id=' + encodeURIComponent(updateTransit.dataset.id) + currentPlaceQuery();
+    updateTransit.addEventListener('click', () => { location.href = transitUrl(); });
+    // Opened without a current place (e.g. a bookmarked link) but one is remembered: redraw the transit for it.
+    if (!new URLSearchParams(location.search).get('cur_place') && currentPlaceQuery()) location.replace(transitUrl());
+}
 """
 
 
-def render_page(saved, selected_id=None, chart_html="", form=None, error=""):
+def render_page(saved, selected_id=None, chart_html="", form=None, error="", transit_html=""):
     esc = html.escape
     form = form or {}
     v = lambda k: esc(str(form.get(k, "")), quote=True)
@@ -107,6 +139,8 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error=""):
             <button type="submit" class="secondary">Delete</button>
         </form>"""
         chart_block = f'<div class="container">{delete_form}{chart_html}</div>'
+    if transit_html:
+        chart_block += f'<div class="container">{transit_html}</div>'
 
     return f"""<!DOCTYPE html>
 <html lang="hi">
@@ -148,9 +182,9 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error=""):
                 <label for="place">Birth place</label>
                 <div class="saved-bar">
                     <input id="place" name="place" required maxlength="200" placeholder="e.g. Garhakota" value="{v('place')}">
-                    <button type="button" id="find-place" class="secondary">Find</button>
+                    <button type="button" id="find_place" class="secondary">Find</button>
                 </div>
-                <select id="place-matches" hidden style="margin-top:8px"></select>
+                <select id="place_matches" hidden style="margin-top:8px"></select>
                 <div class="hint">Click Find and pick the right match — it fills latitude, longitude and timezone.</div>
             </div>
         </div>
@@ -171,10 +205,40 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error=""):
                 </div>
             </div>
         </details>
+        <h3 class="section-title">गोचर (Transit) — current place</h3>
+        <div class="grid">
+            <div class="full">
+                <label for="cur_place">Current place</label>
+                <div class="saved-bar">
+                    <input id="cur_place" name="cur_place" maxlength="200" placeholder="Leave blank to use the birth place" value="{v('cur_place')}">
+                    <button type="button" id="cur_find_place" class="secondary">Find</button>
+                </div>
+                <select id="cur_place_matches" hidden style="margin-top:8px"></select>
+                <div class="hint">The transit chart shows the planets as of now, with the lagna rising at this place. Click Find and pick a match.</div>
+            </div>
+        </div>
+        <details>
+            <summary>Current place coordinates &amp; timezone</summary>
+            <div class="grid" style="margin-top:10px">
+                <div>
+                    <label for="cur_lat">Latitude (N +, S −)</label>
+                    <input id="cur_lat" name="cur_lat" type="number" step="any" min="-90" max="90" value="{v('cur_lat')}">
+                </div>
+                <div>
+                    <label for="cur_lon">Longitude (E +, W −)</label>
+                    <input id="cur_lon" name="cur_lon" type="number" step="any" min="-180" max="180" value="{v('cur_lon')}">
+                </div>
+                <div class="full">
+                    <label for="cur_timezone">Timezone (IANA name)</label>
+                    <input id="cur_timezone" name="cur_timezone" placeholder="Asia/Kolkata" value="{v('cur_timezone')}">
+                </div>
+            </div>
+        </details>
         <div class="actions">
             <button type="submit">Generate Kundli</button>
             <input type="checkbox" id="save" name="save" checked>
             <label for="save">Save to list</label>
+            {f'<button type="button" id="update_transit" class="secondary" data-id="{esc(selected_id, quote=True)}">Update transit only</button>' if selected_id else ''}
         </div>
     </form>
 </div>

@@ -219,7 +219,7 @@ def _format_coord(value, pos, neg):
     return f"{abs(value):.4f}° {pos if value >= 0 else neg}"
 
 
-def render_chart_fragment(data, name="", place=""):
+def render_chart_fragment(data, name="", place="", title="जन्म कुंडली (Kundli Chart)"):
     """
     Renders the North Indian Diamond Chart (counter-clockwise house layout) and the
     planetary table as an HTML fragment. Pair it with CHART_CSS.
@@ -236,7 +236,7 @@ def render_chart_fragment(data, name="", place=""):
     tz_label = f" (UTC{esc(info['tz'])})" if info.get("tz") else ""
 
     html_content = f"""
-    <h1 class="kundli-title">जन्म कुंडली (Kundli Chart){title_name}</h1>
+    <h1 class="kundli-title">{title}{title_name}</h1>
     <h2 class="kundli-title">उत्तर भारतीय शैली (North Indian Style)</h2>
 
     <div class="info-bar">

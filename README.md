@@ -19,6 +19,11 @@ from a dropdown.
 Routes: `GET /` (page, `?id=` shows a saved kundli), `POST /kundli` (generate, and optionally save),
 `POST /kundli/{id}/delete`, `GET /api/places?q=` (place search).
 
+Below the birth chart, a **transit (gochar) chart** shows the planets as of the moment the page is
+loaded, with the lagna rising at the optional **current place** (the birth place if left blank). The
+current place isn't saved with the kundli: it travels in the URL (`cur_place`, `cur_lat`, `cur_lon`,
+`cur_timezone`) and the browser remembers the last one you picked. Reload the page to refresh the transit.
+
 Only the birth inputs are stored. The chart is recomputed each time you view it.
 
 ## Run locally (Azure Functions)

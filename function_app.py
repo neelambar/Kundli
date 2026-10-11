@@ -5,7 +5,7 @@ import urllib.parse
 import azure.functions as func
 
 from geo import search_places
-from kundli_service import build_chart, parse_birth_form
+from kundli_service import build_chart, build_transit_for, current_place_fields, current_place_query, parse_birth_form
 from kundli_store import get_store
 from pages import render_page
 
@@ -43,13 +43,17 @@ def get_dispatch(req: func.HttpRequest) -> func.HttpResponse:
 
 def index(req: func.HttpRequest) -> func.HttpResponse:
     kundli_id = req.params.get("id")
-    chart_html, form = "", None
+    chart_html, transit_html, form, error = "", "", None, ""
     if kundli_id:
         rec = store().get(kundli_id)
         if rec is None:
             return redirect("/")
-        chart_html, form = build_chart(rec), rec
-    return html_response(render_page(store().list(), kundli_id, chart_html, form))
+        chart_html, form = build_chart(rec), {**rec, **current_place_fields(req.params)}
+        try:
+            transit_html = build_transit_for(rec, req.params)
+        except ValueError as e:
+            error = str(e)
+    return html_response(render_page(store().list(), kundli_id, chart_html, form, error, transit_html))
 
 
 @app.route(route="kundli", methods=["POST"])
@@ -58,13 +62,15 @@ def create_kundli(req: func.HttpRequest) -> func.HttpResponse:
     try:
         rec = parse_birth_form(form)
         chart_html = build_chart(rec)
+        transit_html = build_transit_for(rec, form)
     except ValueError as e:
         return html_response(render_page(store().list(), form=dict(form), error=str(e)), status=400)
 
     if form.get("save"):
         kundli_id = store().add(rec)
-        return redirect("/?id=" + urllib.parse.quote(kundli_id))
-    return html_response(render_page(store().list(), chart_html=chart_html, form=rec))
+        return redirect("/?id=" + urllib.parse.quote(kundli_id) + current_place_query(form))
+    return html_response(render_page(store().list(), chart_html=chart_html, form={**rec, **current_place_fields(form)},
+                                     transit_html=transit_html))
 
 
 @app.route(route="kundli/{id}/delete", methods=["POST"])
