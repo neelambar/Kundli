@@ -6,14 +6,14 @@ from a dropdown.
 
 | File | Purpose |
 |---|---|
-| `app.py` | Flask app for self-hosting (gunicorn + Caddy on OCI / any Linux server) |
+| `app.py` | Flask app for self-hosting (gunicorn on OCI / any Linux server) |
 | `function_app.py` | The same routes as an Azure Functions app (Python v2 model) |
 | `kundli_service.py` | Form validation and chart building, shared by both apps |
 | `CreateBirthChart.py` | Calculation (`calculate_kundli`) and chart HTML. Still works as a CLI script |
 | `pages.py` | Main page: form, saved-kundli dropdown, place search |
 | `geo.py` | Place lookup (Open-Meteo, no API key) and historical UTC offset (handles DST) |
 | `kundli_store.py` | Storage: SQLite (self-hosted), Azure Table Storage, or a local JSON file |
-| `deploy/` | systemd service and Caddy site block for the self-hosted setup |
+| `deploy/` | systemd service (and an optional Caddy site block) for the self-hosted setup |
 | `dasha.py` | Vimshottari dasha (not wired into the web app yet) |
 
 Routes: `GET /` (page, `?id=` shows a saved kundli), `POST /kundli` (generate, and optionally save),
@@ -36,10 +36,10 @@ Open http://localhost:7071/.
 To test against Table Storage locally, run [Azurite](https://learn.microsoft.com/azure/storage/common/storage-use-azurite)
 and remove `KUNDLI_LOCAL_STORE` from `local.settings.json`.
 
-## Deploy on an OCI Ubuntu instance (gunicorn + Caddy)
+## Deploy on an OCI Ubuntu instance
 
-gunicorn runs the Flask app on `127.0.0.1:8000` as a systemd service. Your existing Caddy serves it
-publicly and handles HTTPS. Saved kundlis live in a SQLite file at `/var/lib/kundli/kundli.db`.
+gunicorn runs the Flask app on port 8000 as a systemd service. You open it at
+`http://<server-public-ip>:8000`. Saved kundlis live in a SQLite file at `/var/lib/kundli/kundli.db`.
 
 The steps assume the user `ubuntu` and a clone at `/home/ubuntu/Kundli`. If yours differ, edit
 `deploy/kundli.service`.
@@ -67,26 +67,19 @@ sudo systemctl enable --now kundli
 systemctl status kundli
 ```
 
-**4. Add the site to Caddy:** copy the block from `deploy/Caddyfile.example` into `/etc/caddy/Caddyfile`
-with your domain, then:
-
-```bash
-caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl reload caddy
-```
-
-The domain's DNS A record must point at the instance's public IP. Caddy then gets the HTTPS certificate on its own.
-
-**5. Ports:** only Caddy's ports need to be open. Port 8000 stays on localhost. If Caddy already serves
-other sites on 80/443, nothing changes. Otherwise open them in **both** places, because OCI's Ubuntu
-images also block them in iptables:
-- OCI console → subnet Security List: ingress TCP 80 and 443 from `0.0.0.0/0`.
-- On the instance:
+**4. Open port 8000.** OCI blocks it in **two** places, and both must allow it:
+- OCI console → your instance → subnet → Security List → add an ingress rule: source `0.0.0.0/0`, TCP, port `8000`.
+- On the instance (OCI's Ubuntu images also block ports with iptables):
   ```bash
-  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
-  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+  sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 8000 -j ACCEPT
   sudo netfilter-persistent save
   ```
+
+Then open `http://<server-public-ip>:8000`.
+
+**Optional: a domain with HTTPS.** If you later want `https://kundli.yourdomain.com`, use Caddy in front of
+the app. Caddy handles HTTPS and forwards requests to port 8000. See `deploy/Caddyfile.example`, change
+`--bind 0.0.0.0:8000` to `127.0.0.1:8000` in the service file, and open ports 80/443 instead of 8000.
 
 **Update** after pushing changes to GitHub:
 
@@ -99,8 +92,8 @@ cd ~/Kundli && git pull && .venv/bin/pip install -r requirements-server.txt && s
 **Back up** the saved kundlis: `sqlite3 /var/lib/kundli/kundli.db ".backup ~/kundli-backup-$(date +%F).db"`
 (install the CLI with `sudo apt install sqlite3`).
 
-**Access:** there's no login, so anyone who can reach the URL can view and add kundlis. To restrict it,
-add `basic_auth` to the site block in Caddy (generate the hash with `caddy hash-password`).
+**Access:** there's no login and it's plain HTTP, so anyone who can reach the URL can view and add kundlis.
+To limit that, set the Security List rule's source to your own IP (e.g. `203.0.113.5/32`) instead of `0.0.0.0/0`.
 
 ## Deploy to Azure
 

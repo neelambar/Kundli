@@ -1,12 +1,16 @@
-# Add this site block to /etc/caddy/Caddyfile, then: sudo systemctl reload caddy
-# Replace the domain with yours (its DNS A record must point at this server).
-# Caddy gets and renews the HTTPS certificate automatically.
+# Caddy site block for the Kundli app. Caddy listens on the public web ports and forwards
+# every request to the app (gunicorn) on port 8000.
+# Add ONE of the blocks below to /etc/caddy/Caddyfile, then: sudo systemctl reload caddy
+
+# Option A - you have a domain (its DNS A record points at this server's public IP).
+# Open https://kundli.example.com - Caddy gets and renews the HTTPS certificate automatically.
 kundli.example.com {
 	encode gzip
 	reverse_proxy 127.0.0.1:8000
 }
 
-# No domain? Use a port on the public IP instead (plain HTTP), e.g.:
-# :8080 {
+# Option B - no domain. Open http://<server-public-ip>/ (plain HTTP, no port number needed).
+# :80 {
+# 	encode gzip
 # 	reverse_proxy 127.0.0.1:8000
 # }

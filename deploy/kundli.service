@@ -11,8 +11,8 @@ WorkingDirectory=/home/ubuntu/Kundli
 # systemd creates /var/lib/kundli (owned by User) for the SQLite database
 StateDirectory=kundli
 Environment=KUNDLI_DB=/var/lib/kundli/kundli.db
-# Only listen on localhost; Caddy is the public entry point
-ExecStart=/home/ubuntu/Kundli/.venv/bin/gunicorn --bind 127.0.0.1:8000 --workers 2 --threads 4 app:app
+# Listens on all interfaces: open http://<server-public-ip>:8000 (use 127.0.0.1 if you put Caddy in front)
+ExecStart=/home/ubuntu/Kundli/.venv/bin/gunicorn --bind 0.0.0.0:8000 --workers 2 --threads 4 app:app
 Restart=on-failure
 
 [Install]

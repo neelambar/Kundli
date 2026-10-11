@@ -1,4 +1,4 @@
-"""Flask app for self-hosting (gunicorn behind Caddy). Same pages and routes as function_app.py."""
+"""Flask app for self-hosting with gunicorn. Same pages and routes as function_app.py."""
 import logging
 import os
 
