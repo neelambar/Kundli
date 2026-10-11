@@ -89,8 +89,12 @@ the app. Caddy handles HTTPS and forwards requests to port 8000. See `deploy/Cad
 **Update** after pushing changes to GitHub:
 
 ```bash
-cd ~/Kundli && git pull && .venv/bin/pip install -r requirements-server.txt && sudo systemctl restart kundli
+~/Kundli/deploy/update.sh
 ```
+
+It pulls, installs requirements, restarts the service and checks that it answers (printing recent
+logs if it doesn't). It's the same as running
+`cd ~/Kundli && git pull && .venv/bin/pip install -r requirements-server.txt && sudo systemctl restart kundli`.
 
 **Logs:** `journalctl -u kundli -f`
 
