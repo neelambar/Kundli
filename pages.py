@@ -208,7 +208,9 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error="", tra
 <body>
 
 <div class="container">
-    <h1 class="app-title">कुंडली</h1>
+    <h1 class="app-title">जन्म कुंडली (Kundli Generator)</h1>
+
+    <label for="saved">Saved kundlis</label>
     <select id="saved">{options}</select>
     <div class="saved-actions">
         <a href="/"><button type="button" class="secondary">New</button></a>{delete_form}
