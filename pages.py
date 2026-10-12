@@ -21,7 +21,7 @@ PAGE_CSS = """
     }
     .app-title { text-align: center; color: #8b0000; margin: 0 0 18px 0; }
     .saved-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .saved-bar select { flex: 1; min-width: 200px; }
+    .saved-bar input { flex: 1; min-width: 0; }
     .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     .grid .full { grid-column: 1 / -1; }
     @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
@@ -47,7 +47,17 @@ PAGE_CSS = """
     details { margin-top: 12px; }
     summary { cursor: pointer; font-size: 13px; color: #8b0000; }
     .section-title { color: #8b0000; font-size: 15px; margin: 22px 0 10px 0; padding-top: 14px; border-top: 1px solid #eee; }
-    .chart-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+    .saved-actions { display: flex; gap: 10px; margin-top: 10px; }
+    .saved-actions form { margin: 0; }
+
+    /* Chart tabs */
+    .tab-bar { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid #8b0000; margin-bottom: 18px; }
+    .tab-bar button {
+        background: #fff; color: #8b0000; border: 1px solid #e0d0b0; border-bottom: none;
+        border-radius: 6px 6px 0 0; padding: 8px 16px; margin-bottom: -2px;
+    }
+    .tab-bar button[aria-selected=true] { background: #8b0000; color: #fff; border-color: #8b0000; }
+    .tab-panel[hidden] { display: none; }
 """
 
 PAGE_JS = """
@@ -90,10 +100,14 @@ const CUR_FIELDS = ['cur_place', 'cur_lat', 'cur_lon', 'cur_timezone'];
 function rememberCurrentPlace() {
     try { localStorage.setItem('kundli.currentPlace', JSON.stringify(CUR_FIELDS.map(f => document.getElementById(f).value))); } catch (e) {}
 }
+let restoredCurrentPlace = false;
 if (!document.getElementById('cur_place').value) {
     try {
         const saved = JSON.parse(localStorage.getItem('kundli.currentPlace') || 'null');
-        if (saved) CUR_FIELDS.forEach((f, i) => { document.getElementById(f).value = saved[i] || ''; });
+        if (saved && saved[0]) {
+            CUR_FIELDS.forEach((f, i) => { document.getElementById(f).value = saved[i] || ''; });
+            restoredCurrentPlace = true;
+        }
     } catch (e) {}
 }
 document.getElementById('cur_place').addEventListener('change', e => { if (!e.target.value.trim()) rememberCurrentPlace(); });
@@ -108,12 +122,40 @@ function currentPlaceQuery() {
 document.getElementById('saved').addEventListener('change', e => {
     if (e.target.value) location.href = '/?id=' + encodeURIComponent(e.target.value) + currentPlaceQuery();
 });
+// Chart tabs. The open tab is kept in the URL hash (#transit) so reloads stay on it.
+const tabs = [...document.querySelectorAll('.tab-bar [role=tab]')];
+function showTab(key) {
+    const tab = tabs.find(t => t.dataset.tab === key) || tabs[0];
+    if (!tab) return;
+    tabs.forEach(t => {
+        const on = t === tab;
+        t.setAttribute('aria-selected', on);
+        t.tabIndex = on ? 0 : -1;
+        document.getElementById('panel-' + t.dataset.tab).hidden = !on;
+    });
+}
+tabs.forEach((t, i) => {
+    t.addEventListener('click', () => { showTab(t.dataset.tab); history.replaceState(null, '', '#' + t.dataset.tab); });
+    t.addEventListener('keydown', e => {
+        const step = { ArrowRight: 1, ArrowLeft: -1 }[e.key];
+        if (!step) return;
+        const next = tabs[(i + step + tabs.length) % tabs.length];
+        next.click(); next.focus();
+    });
+});
+showTab(location.hash.slice(1));
+
 const updateTransit = document.getElementById('update_transit');
 if (updateTransit) {
-    const transitUrl = () => '/?id=' + encodeURIComponent(updateTransit.dataset.id) + currentPlaceQuery();
-    updateTransit.addEventListener('click', () => { location.href = transitUrl(); });
+    const transitUrl = () => '/?id=' + encodeURIComponent(updateTransit.dataset.id) + currentPlaceQuery() + location.hash;
+    updateTransit.addEventListener('click', () => {
+        showTab('transit'); history.replaceState(null, '', '#transit');
+        const url = new URL(transitUrl(), location.href).href;
+        if (url === location.href) location.reload();  // same place: just refresh the transit time
+        else location.href = url;
+    });
     // Opened without a current place (e.g. a bookmarked link) but one is remembered: redraw the transit for it.
-    if (!new URLSearchParams(location.search).get('cur_place') && currentPlaceQuery()) location.replace(transitUrl());
+    if (restoredCurrentPlace) location.replace(transitUrl());
 }
 """
 
@@ -129,18 +171,31 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error="", tra
         for k in saved
     )
 
-    chart_block = ""
-    if chart_html:
-        delete_form = ""
-        if selected_id:
-            delete_form = f"""
-        <form class="chart-actions" method="post" action="/kundli/{esc(selected_id)}/delete"
+    delete_form = ""
+    if selected_id:
+        delete_form = f"""
+        <form method="post" action="/kundli/{esc(selected_id)}/delete"
               onsubmit="return confirm('Delete this kundli?');">
             <button type="submit" class="secondary">Delete</button>
         </form>"""
-        chart_block = f'<div class="container">{delete_form}{chart_html}</div>'
-    if transit_html:
-        chart_block += f'<div class="container">{transit_html}</div>'
+
+    # One tab per chart; add new charts here. The first tab is open unless the URL hash picks another.
+    tabs = [(key, label, body) for key, label, body in (
+        ("birth", "जन्म कुंडली (Birth)", chart_html),
+        ("transit", "गोचर (Transit)", transit_html),
+    ) if body]
+    chart_block = ""
+    if tabs:
+        tab_buttons = "".join(
+            f'<button type="button" role="tab" id="tab-{key}" data-tab="{key}" aria-controls="panel-{key}" '
+            f'aria-selected="{"true" if i == 0 else "false"}" tabindex="{0 if i == 0 else -1}">{label}</button>'
+            for i, (key, label, _) in enumerate(tabs)
+        )
+        panels = "".join(
+            f'<div class="tab-panel" role="tabpanel" id="panel-{key}" aria-labelledby="tab-{key}"{" hidden" if i else ""}>{body}</div>'
+            for i, (key, _, body) in enumerate(tabs)
+        )
+        chart_block = f'<div class="container"><div class="tab-bar" role="tablist">{tab_buttons}</div>{panels}</div>'
 
     return f"""<!DOCTYPE html>
 <html lang="hi">
@@ -156,9 +211,9 @@ def render_page(saved, selected_id=None, chart_html="", form=None, error="", tra
     <h1 class="app-title">जन्म कुंडली (Kundli Generator)</h1>
 
     <label for="saved">Saved kundlis</label>
-    <div class="saved-bar">
-        <select id="saved">{options}</select>
-        <a href="/"><button type="button" class="secondary">New</button></a>
+    <select id="saved">{options}</select>
+    <div class="saved-actions">
+        <a href="/"><button type="button" class="secondary">New</button></a>{delete_form}
     </div>
 </div>
 
